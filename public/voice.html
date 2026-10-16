@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voice Demo · Main Street MCP</title>
+<style>
+  :root { --bg:#0b0f14; --panel:#121821; --line:#1f2a36; --ink:#e8eef5; --muted:#8a97a6; --ring:#22d3ee; --think:#3b82f6; --user:#1e3a5f; --ok:#4ade80; --code:#0d131b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+  header { display:flex; gap:12px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  .pill { font-size:12px; border:1px solid var(--line); border-radius:99px; padding:3px 9px; color:var(--muted); }
+  .pill.bedrock { color:#fbbf24; border-color:#fbbf24; }
+  header a { margin-left:auto; color:var(--ring); font-size:14px; }
+  main { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:18px; padding:18px 20px; max-width:1300px; margin:0 auto; }
+  @media (max-width:900px){ main{ grid-template-columns:1fr; padding:16px; } }
+  .device { background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px; display:flex; flex-direction:column; min-height:560px; }
+  .ring { height:6px; border-radius:6px; background:var(--line); margin-bottom:14px; transition:background .2s; }
+  .ring.listening { background:var(--ring); box-shadow:0 0 18px var(--ring); animation:pulse 1.2s infinite; }
+  .ring.thinking { background:linear-gradient(90deg,var(--think),var(--ring),var(--think)); background-size:200% 100%; animation:slide 1s linear infinite; }
+  .ring.speaking { background:var(--ring); }
+  @keyframes pulse { 50% { opacity:.55; } } @keyframes slide { to { background-position:-200% 0; } }
+  .chat { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:4px; max-height:52vh; }
+  .msg { max-width:85%; padding:10px 13px; border-radius:14px; }
+  .msg.user { align-self:flex-end; background:var(--user); border-bottom-right-radius:4px; }
+  .msg.bot { align-self:flex-start; background:#18222e; border:1px solid var(--line); border-bottom-left-radius:4px; font-size:17px; }
+  .hint { color:var(--muted); text-align:center; margin:auto; max-width:360px; }
+  .controls { display:flex; gap:10px; align-items:center; margin-top:14px; }
+  .mic { width:64px; height:64px; border-radius:50%; border:none; background:var(--ring); color:#05222a; font-size:26px; cursor:pointer; flex:none; }
+  .mic.on { background:#ef4444; color:#fff; }
+  .mic:disabled { opacity:.4; cursor:not-allowed; }
+  input[type=text] { flex:1; min-width:0; background:var(--code); border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:12px; font:inherit; }
+  button.send { background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:12px 14px; cursor:pointer; font:inherit; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .chip { font-size:13px; background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:99px; padding:5px 10px; cursor:pointer; }
+  .chip:hover { color:var(--ink); border-color:var(--ring); }
+  .name { display:flex; gap:8px; align-items:center; margin-top:10px; color:var(--muted); font-size:13px; }
+  .name input[type=text] { flex:none; width:160px; padding:6px 10px; }
+  .name label { display:flex; gap:6px; align-items:center; margin-left:8px; }
+  .trace { background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:18px; min-height:560px; display:flex; flex-direction:column; }
+  .trace h2 { margin:0 0 4px; font-size:15px; } .trace p.sub { margin:0 0 12px; color:var(--muted); font-size:13px; }
+  .calls { flex:1; overflow-y:auto; max-height:60vh; display:flex; flex-direction:column; gap:10px; }
+  .call { overflow-wrap:anywhere; background:var(--code); border:1px solid var(--line); border-radius:12px; padding:10px 12px; font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .call .tool { color:var(--ring); font-weight:700; } .call .arrow { color:var(--muted); }
+  .call pre { margin:6px 0 0; white-space:pre-wrap; word-break:break-word; color:#c9d4e0; }
+  .call .res { color:var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Simulated Alexa+ · <span id="biz">…</span></h1>
+  <span class="pill" id="mode">connecting…</span>
+  <span class="pill">MCP 2025-11-25 · Streamable HTTP</span>
+  <a href="/dashboard" target="_blank" rel="noopener">Open owner dashboard ↗</a>
+</header>
+<main>
+  <section class="device" aria-label="Voice assistant">
+    <div class="ring" id="ring"></div>
+    <div class="chat" id="chat" aria-live="polite">
+      <div class="hint" id="hint">Tap the mic and talk, or type below.<br />Try: “Order a margherita and two garlic knots.”</div>
+    </div>
+    <div class="controls">
+      <button class="mic" id="mic" title="Tap to talk" aria-label="Tap to talk">🎤</button>
+      <input type="text" id="text" placeholder="…or type what you'd say to Alexa" autocomplete="off" />
+      <button class="send" id="send">Send</button>
+    </div>
+    <div class="name">Speaking as <input type="text" id="cust" value="Renu" maxlength="60" /> <label><input type="checkbox" id="speak" checked /> Speak replies</label></div>
+    <div class="chips" id="chips"></div>
+  </section>
+  <section class="trace" aria-label="MCP tool calls">
+    <h2>Under the hood: MCP tool calls</h2>
+    <p class="sub">Each request goes from the assistant to the Main Street MCP server over Streamable HTTP.</p>
+    <div class="calls" id="calls"><div class="hint">Tool calls will appear here.</div></div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const sessionId = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random());
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const CHIPS = ["Are you open right now?", "What vegan options do you have?", "Order a margherita and two garlic knots", "The large one", "Yes", "Is my order ready?", "Book a table for 2 tomorrow at 7pm"];
+$("chips").innerHTML = CHIPS.map((c) => `<button class="chip">${esc(c)}</button>`).join("");
+$("chips").addEventListener("click", (e) => { if (e.target.classList.contains("chip")) ask(e.target.textContent); });
+
+fetch("/api/assistant/info").then((r) => r.json()).then((i) => {
+  $("biz").textContent = i.business;
+  $("mode").textContent = i.mode === "demo" ? "Demo brain (no cloud)" : `Amazon Bedrock · ${i.mode.split(":")[1]}`;
+  if (i.mode !== "demo") $("mode").classList.add("bedrock");
+});
+
+function ring(state) { $("ring").className = "ring " + (state || ""); }
+function bubble(text, who) {
+  $("hint")?.remove();
+  const d = document.createElement("div"); d.className = "msg " + who; d.textContent = text;
+  $("chat").appendChild(d); $("chat").scrollTop = $("chat").scrollHeight;
+}
+function showCalls(trace) {
+  const box = $("calls"); box.querySelector(".hint")?.remove();
+  for (const t of trace) {
+    const { speech, ...rest } = t.result || {};
+    const d = document.createElement("div"); d.className = "call";
+    d.innerHTML = `<span class="tool">${esc(t.tool)}</span> <span class="arrow">←</span> ${esc(JSON.stringify(t.args))}
+      <pre class="res">→ “${esc(speech)}”</pre><pre>${esc(JSON.stringify(rest, null, 2)).slice(0, 900)}</pre>`;
+    box.prepend(d);
+  }
+}
+function say(text) {
+  if (!$("speak").checked || !("speechSynthesis" in window)) return ring();
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.rate = 1.03;
+  const v = speechSynthesis.getVoices().find((v) => /en-US/.test(v.lang) && /Samantha|Google US English|Aria|Jenny/.test(v.name));
+  if (v) u.voice = v;
+  u.onstart = () => ring("speaking"); u.onend = () => ring();
+  speechSynthesis.speak(u);
+}
+
+async function ask(text) {
+  text = text.trim(); if (!text) return;
+  bubble(text, "user"); $("text").value = ""; ring("thinking");
+  try {
+    const r = await fetch("/api/assistant", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, sessionId, customerName: $("cust").value }) }).then((r) => r.json());
+    bubble(r.reply || r.error, "bot"); showCalls(r.trace || []); say(r.reply || "");
+  } catch { bubble("Couldn't reach the server.", "bot"); ring(); }
+}
+$("send").onclick = () => ask($("text").value);
+$("text").addEventListener("keydown", (e) => { if (e.key === "Enter") ask($("text").value); });
+
+// Speech recognition (Chrome / Edge / Safari)
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) { $("mic").disabled = true; $("mic").title = "Voice input needs Chrome, Edge or Safari"; }
+else {
+  const rec = new SR(); rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
+  let listening = false, finalText = "";
+  rec.onstart = () => { listening = true; finalText = ""; $("mic").classList.add("on"); ring("listening"); speechSynthesis?.cancel(); };
+  rec.onresult = (e) => {
+    let interim = ""; for (const r of e.results) (r.isFinal ? (finalText = r[0].transcript) : (interim = r[0].transcript));
+    $("text").value = finalText || interim;
+  };
+  rec.onerror = () => { listening = false; $("mic").classList.remove("on"); ring(); };
+  rec.onend = () => { listening = false; $("mic").classList.remove("on"); if (finalText) ask(finalText); else ring(); };
+  $("mic").onclick = () => (listening ? rec.stop() : rec.start());
+}
+</script>
+</body>
+</html>

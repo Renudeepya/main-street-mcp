@@ -10,6 +10,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { loadBusiness } from "./business.js";
 import { Store } from "./store.js";
 import { registerTools } from "./tools.js";
+import { createAssistant } from "./assistant.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT || 3000);
@@ -18,11 +19,13 @@ const store = new Store(process.env.DATA_FILE || join(root, "data/store.json"));
 const MCP_API_KEY = process.env.MCP_API_KEY;     // optional: require Bearer token on /mcp
 const OWNER_TOKEN = process.env.OWNER_TOKEN;     // optional: protect the owner dashboard API
 
+const INSTRUCTIONS = `You are taking requests for ${biz.name}, a local ${biz.type}. Be brief: replies are spoken aloud. ` +
+  `Read the 'speech' field of tool results to the customer. Never place an order or booking without an explicit yes.`;
+
 function buildServer() {
   const server = new McpServer(
     { name: "main-street-mcp", title: `${biz.name} (Main Street MCP)`, version: "0.1.0" },
-    { instructions: `You are taking requests for ${biz.name}, a local ${biz.type}. Be brief: replies are spoken aloud. ` +
-        `Read the 'speech' field of tool results to the customer. Never place an order or booking without an explicit yes.` }
+    { instructions: INSTRUCTIONS }
   );
   registerTools(server, { biz, store });
   return server;
@@ -99,10 +102,22 @@ app.get("/api/events", ownerAuth, (req, res) => {
   req.on("close", () => { clearInterval(ping); store.off("change", send); });
 });
 
+// ---- Simulated Alexa+ (voice web app) ----
+const assistant = createAssistant({ mcpUrl: `http://127.0.0.1:${PORT}/mcp`, apiKey: MCP_API_KEY, biz, instructions: INSTRUCTIONS });
+app.get("/voice", (_req, res) => res.sendFile(join(root, "public/voice.html")));
+app.get("/api/assistant/info", (_req, res) => res.json({ mode: assistant.mode(), business: biz.name }));
+app.post("/api/assistant", async (req, res) => {
+  const { text, sessionId, customerName } = req.body || {};
+  if (!text || typeof text !== "string" || text.length > 500) return res.status(400).json({ error: "text (1-500 chars) required" });
+  res.json(await assistant.handle({ text, sessionId, customerName: String(customerName || "").slice(0, 60) }));
+});
+app.post("/api/assistant/reset", (req, res) => { assistant.reset(req.body?.sessionId); res.json({ ok: true }); });
+
 app.get("/healthz", (_req, res) => res.json({ ok: true, business: biz.id, sessions: sessions.size }));
 
 app.listen(PORT, () => {
   console.log(`Main Street MCP for "${biz.name}"`);
   console.log(`  MCP endpoint:   http://localhost:${PORT}/mcp`);
   console.log(`  Owner dashboard: http://localhost:${PORT}/dashboard`);
+  console.log(`  Voice demo:      http://localhost:${PORT}/voice  (assistant: ${assistant.mode()})`);
 });

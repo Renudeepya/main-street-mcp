@@ -7,6 +7,9 @@ import { z } from "zod";
 import { localNow, isOpenAt, hoursFor, formatHours, searchMenu, resolveItem, slotsFor, toMin, fromMin } from "./business.js";
 
 const money = (n) => `$${n.toFixed(2)}`;
+// Speech-friendly formatting: "19:30" -> "7:30 PM", "2026-10-17" -> "Saturday, October 17"
+const t12 = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "AM" : "PM"}`; };
+const sayDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 const reply = (speech, data = {}) => ({
   content: [{ type: "text", text: speech }],
   structuredContent: { speech, ...data },
@@ -29,8 +32,8 @@ export function registerTools(server, { biz, store, clock = () => new Date() }) 
       const open = isOpenAt(biz, n.date, n.time);
       const today = hoursFor(biz, n.date);
       const speech = open
-        ? `${biz.name} is open now until ${today[1]}. It's at ${biz.address}.`
-        : `${biz.name} is closed right now.${today ? ` Today's hours are ${today[0]} to ${today[1]}.` : ""} It's at ${biz.address}.`;
+        ? `${biz.name} is open now until ${t12(today[1])}. It's at ${biz.address}.`
+        : `${biz.name} is closed right now.${today ? ` Today's hours are ${t12(today[0])} to ${t12(today[1])}.` : ""} It's at ${biz.address}.`;
       return reply(speech, { ok: true, name: biz.name, address: biz.address, phone: biz.phone, openNow: open, hours: formatHours(biz) });
     }
   );
@@ -83,10 +86,10 @@ export function registerTools(server, { biz, store, clock = () => new Date() }) 
         const lead = biz.ordering.pickupLeadMinutes || 20;
         const earliest = toMin(n.time) + lead;
         const pickup = pickup_time === "asap" ? fromMin(earliest) : pickup_time;
-        if (toMin(pickup) < earliest) return fail(`The earliest pickup is ${fromMin(earliest)}. Would that work?`, { earliest: fromMin(earliest) });
+        if (toMin(pickup) < earliest) return fail(`The earliest pickup is ${t12(fromMin(earliest))}. Would that work?`, { earliest: fromMin(earliest) });
         if (!isOpenAt(biz, n.date, pickup)) {
           const h = hoursFor(biz, n.date);
-          return fail(h ? `We're not open at ${pickup}. Today's hours are ${h[0]} to ${h[1]}.` : `${biz.name} is closed today.`);
+          return fail(h ? `We're not open at ${t12(pickup)}. Today's hours are ${t12(h[0])} to ${t12(h[1])}.` : `${biz.name} is closed today.`);
         }
 
         const lines = [];
@@ -99,11 +102,11 @@ export function registerTools(server, { biz, store, clock = () => new Date() }) 
         const summary = lines.map((l) => `${l.quantity} ${l.name}`).join(", ");
 
         if (!confirm) {
-          return reply(`That's ${summary} for ${customer_name}, total ${money(total)}, ready for pickup at ${pickup}. Should I place it?`,
+          return reply(`That's ${summary} for ${customer_name}, total ${money(total)}, ready for pickup at ${t12(pickup)}. Should I place it?`,
             { ok: true, stage: "quote", lines, total, pickupTime: pickup });
         }
         const order = store.addOrder({ customerName: customer_name, lines, total, currency: biz.currency, pickupTime: pickup, date: n.date, channel: "alexa+" });
-        return reply(`Done! Order ${order.id.split("").join(" ")} is in: ${summary}, ${money(total)}, ready at ${pickup}. Pay at pickup.`,
+        return reply(`Done! Order ${order.id.split("").join(" ")} is in: ${summary}, ${money(total)}, ready at ${t12(pickup)}. Pay at pickup.`,
           { ok: true, stage: "placed", order });
       }
     );
@@ -120,7 +123,7 @@ export function registerTools(server, { biz, store, clock = () => new Date() }) 
         const o = store.getOrder(order_id);
         if (!o) return fail(`I couldn't find order ${order_id}.`);
         const phrase = { received: "has been received", preparing: "is being made now", ready: "is ready for pickup", picked_up: "was picked up", cancelled: "was cancelled" }[o.status];
-        return reply(`Order ${o.id} ${phrase}.${o.status === "received" || o.status === "preparing" ? ` Pickup time is ${o.pickupTime}.` : ""}`, { ok: true, order: o });
+        return reply(`Order ${o.id} ${phrase}.${o.status === "received" || o.status === "preparing" ? ` Pickup time is ${t12(o.pickupTime)}.` : ""}`, { ok: true, order: o });
       }
     );
 
@@ -167,8 +170,8 @@ export function registerTools(server, { biz, store, clock = () => new Date() }) 
         let slots = slotsFor(biz, svc, d, store.data.bookings);
         if (d === n.date) slots = slots.filter((t) => toMin(t) > toMin(n.time));
         if (!slots.length) return fail(`No ${svc.name} times are left on ${d}.`, { slots: [] });
-        const spoken = slots.length > 4 ? `${slots.slice(0, 4).join(", ")} and ${slots.length - 4} more` : slots.join(", ");
-        return reply(`For ${svc.name} on ${d}, I have ${spoken}.`, { ok: true, service: svc, date: d, slots });
+        const spoken = slots.length > 4 ? `${slots.slice(0, 4).map(t12).join(", ")} and ${slots.length - 4} more` : slots.map(t12).join(", ");
+        return reply(`For ${svc.name} on ${sayDate(d)}, I have ${spoken}.`, { ok: true, service: svc, date: d, slots });
       }
     );
 
@@ -191,11 +194,11 @@ export function registerTools(server, { biz, store, clock = () => new Date() }) 
         if (!svc) return fail(`We offer ${services.map((s) => s.name).join(" or ")}. Which one?`);
         const slots = slotsFor(biz, svc, date, store.data.bookings);
         if (!slots.includes(time)) {
-          return fail(`${time} isn't available for ${svc.name} on ${date}.${slots.length ? ` Closest options: ${slots.slice(0, 3).join(", ")}.` : ""}`, { slots });
+          return fail(`${time} isn't available for ${svc.name} on ${date}.${slots.length ? ` Closest options: ${slots.slice(0, 3).map(t12).join(", ")}.` : ""}`, { slots });
         }
-        if (!confirm) return reply(`${svc.name} on ${date} at ${time} for ${customer_name}. Shall I book it?`, { ok: true, stage: "quote" });
+        if (!confirm) return reply(`${svc.name} on ${sayDate(date)} at ${t12(time)} for ${customer_name}. Shall I book it?`, { ok: true, stage: "quote" });
         const b = store.addBooking({ serviceId: svc.id, serviceName: svc.name, date, time, durationMinutes: svc.durationMinutes, customerName: customer_name, channel: "alexa+" });
-        return reply(`You're booked: ${svc.name} on ${date} at ${time}. Your confirmation is ${b.id.split("").join(" ")}.`, { ok: true, stage: "booked", booking: b });
+        return reply(`You're booked: ${svc.name} on ${sayDate(date)} at ${t12(time)}. Your confirmation is ${b.id.split("").join(" ")}.`, { ok: true, stage: "booked", booking: b });
       }
     );
   }

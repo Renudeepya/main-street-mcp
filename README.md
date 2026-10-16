@@ -27,11 +27,27 @@ Big brands are building Alexa+ experiences. The corner pizzeria, the barbershop 
 
 **Works for any business:** Restaurants use the menu and orders. Barbers, salons and clinics use appointments. See `config/barbershop.example.json`. Tools register automatically based on what the config enables.
 
+## Voice demo (simulated Alexa+)
+
+Open **http://localhost:3000/voice**, tap the mic (Chrome, Edge or Safari) or type, and talk to Tony's. The right-hand panel shows every **MCP tool call** the assistant makes. Open `/dashboard` next to it and orders appear live.
+
+The assistant connects to this server **as an MCP client over Streamable HTTP**, the same way Alexa+ does. It has two brains:
+
+| Mode | How to enable | What it does |
+|---|---|---|
+| **Demo** (default) | nothing | Built-in intent parser for hours, menu, orders, "which size?" follow-ups, confirmations and bookings. Needs no cloud account. |
+| **Amazon Bedrock** | `ASSISTANT_MODE=bedrock` + AWS credentials | Bedrock **Converse API with tool use**. Tools are discovered from the MCP server (`listTools`) and passed to the model, and each tool call it makes is run with MCP `callTool`. Default model `amazon.nova-lite-v1:0` (override with `BEDROCK_MODEL_ID`). |
+
+```bash
+cp .env.example .env      # add your AWS keys (.env is git-ignored)
+npm run start:bedrock
+```
+
 ## Quick start
 
 ```bash
 npm install
-npm start                       # MCP at http://localhost:3000/mcp, dashboard at /dashboard
+npm start                       # MCP at /mcp · dashboard at /dashboard · voice demo at /voice
 npm run smoke                   # end-to-end test using the official MCP client
 ```
 
@@ -51,7 +67,8 @@ BUSINESS_CONFIG=config/barbershop.example.json npm start
 ## Architecture
 
 ```
-Alexa+ / any MCP client ──Streamable HTTP──▶ /mcp  (McpServer, one per session)
+Voice web app (/voice) ──▶ /api/assistant ──(MCP client)──┐
+Alexa+ / any MCP client ──Streamable HTTP──────────────────▶ /mcp  (McpServer, one per session)
                                                │
                                      tools.js (voice-first rules)
                                                │
@@ -61,7 +78,7 @@ Alexa+ / any MCP client ──Streamable HTTP──▶ /mcp  (McpServer, one per
 ```
 
 ## Roadmap
-- [ ] Simulated Alexa+ voice web app (Amazon Bedrock agent calling this server)
+- [x] Simulated Alexa+ voice web app (demo brain + Amazon Bedrock Converse tool use)
 - [ ] Deploy to AWS (AgentCore Runtime or Lambda) with DynamoDB storage
 - [ ] Google Sheet as the menu source, so owners edit a spreadsheet instead of JSON
 - [ ] Square/Toast connectors and SMS "order ready" notifications
