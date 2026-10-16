@@ -1,0 +1,29 @@
+{
+  "id": "fade-factory",
+  "name": "Fade Factory Barbers",
+  "type": "barbershop",
+  "phone": "+1-617-555-0199",
+  "address": "88 Tremont St, Boston, MA 02108",
+  "timezone": "America/New_York",
+  "currency": "USD",
+  "hours": {
+    "tue": ["10:00", "19:00"],
+    "wed": ["10:00", "19:00"],
+    "thu": ["10:00", "20:00"],
+    "fri": ["10:00", "20:00"],
+    "sat": ["09:00", "17:00"]
+  },
+  "ordering": { "enabled": false },
+  "menu": [],
+  "appointments": {
+    "enabled": true,
+    "label": "appointment",
+    "slotMinutes": 15,
+    "capacityPerSlot": 2,
+    "services": [
+      { "id": "haircut", "name": "Haircut", "durationMinutes": 30 },
+      { "id": "beard-trim", "name": "Beard Trim", "durationMinutes": 15 },
+      { "id": "cut-and-beard", "name": "Haircut and Beard", "durationMinutes": 45 }
+    ]
+  }
+}

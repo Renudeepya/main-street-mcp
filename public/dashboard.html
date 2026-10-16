@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Order Board · Main Street MCP</title>
+<style>
+  :root { --bg:#f6f3ee; --card:#fff; --ink:#1d1b18; --muted:#6f6a62; --line:#e4ded4; --accent:#c2410c; --ok:#15803d; --warn:#b45309; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141210; --card:#1f1c19; --ink:#f3efe8; --muted:#a39d93; --line:#34302b; --accent:#fb923c; --ok:#4ade80; --warn:#fbbf24; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:baseline; gap:12px; padding:18px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { margin:0; font-size:20px; }
+  header .sub { color:var(--muted); }
+  .live { margin-left:auto; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--ok); }
+  main { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; padding:16px 20px; }
+  @media (max-width: 960px) { main { grid-template-columns:1fr 1fr; } }
+  @media (max-width: 560px) { main { grid-template-columns:1fr; padding:16px; } }
+  .col h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 8px; display:flex; justify-content:space-between; }
+  .ticket { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+  .ticket.new { animation: flash 1.6s ease-out; border-color:var(--accent); }
+  @keyframes flash { from { box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } to { box-shadow:none; } }
+  .row { display:flex; justify-content:space-between; gap:8px; }
+  .id { font-weight:700; font-variant-numeric:tabular-nums; }
+  .badge { font-size:11px; padding:2px 6px; border-radius:99px; border:1px solid var(--line); color:var(--muted); }
+  .badge.alexa { color:var(--accent); border-color:var(--accent); }
+  ul { margin:8px 0; padding-left:18px; }
+  .note { color:var(--warn); font-size:13px; }
+  .meta { color:var(--muted); font-size:13px; }
+  button { font:inherit; border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:8px; padding:6px 10px; cursor:pointer; }
+  button.primary { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .actions { display:flex; gap:6px; margin-top:8px; }
+  .empty { color:var(--muted); font-size:13px; padding:8px 2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="biz">Order Board</h1><span class="sub" id="addr"></span>
+  <span class="live"><span class="dot" id="dot"></span><span id="livetxt">Live</span></span>
+</header>
+<main>
+  <section class="col"><h2>New <span id="c-received"></span></h2><div id="received"></div></section>
+  <section class="col"><h2>Preparing <span id="c-preparing"></span></h2><div id="preparing"></div></section>
+  <section class="col"><h2>Ready for pickup <span id="c-ready"></span></h2><div id="ready"></div></section>
+  <section class="col"><h2>Reservations <span id="c-bookings"></span></h2><div id="bookings"></div></section>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get("token");
+const auth = token ? { Authorization: "Bearer " + token } : {};
+const q = token ? "?token=" + encodeURIComponent(token) : "";
+const fresh = new Set();
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const next = { received: ["preparing", "Start"], preparing: ["ready", "Mark ready"], ready: ["picked_up", "Picked up"] };
+
+async function setStatus(id, status) {
+  await fetch(`/api/orders/${id}/status`, { method: "POST", headers: { "Content-Type": "application/json", ...auth }, body: JSON.stringify({ status }) });
+}
+
+function ticket(o) {
+  const n = next[o.status];
+  return `<div class="ticket ${fresh.has(o.id) ? "new" : ""}">
+    <div class="row"><span class="id">${esc(o.id)}</span><span class="badge ${o.channel === "alexa+" ? "alexa" : ""}">${esc(o.channel || "web")}</span></div>
+    <div class="meta">${esc(o.customerName)} · pickup ${esc(o.pickupTime)} · $${o.total.toFixed(2)}</div>
+    <ul>${o.lines.map((l) => `<li>${l.quantity} × ${esc(l.name)}${l.notes ? ` <span class="note">(${esc(l.notes)})</span>` : ""}</li>`).join("")}</ul>
+    <div class="actions">${n ? `<button class="primary" onclick="setStatus('${o.id}','${n[0]}')">${n[1]}</button>` : ""}
+      ${o.status === "received" ? `<button onclick="setStatus('${o.id}','cancelled')">Cancel</button>` : ""}</div>
+  </div>`;
+}
+
+async function render() {
+  const r = await fetch("/api/orders" + q, { headers: auth });
+  if (!r.ok) { document.getElementById("livetxt").textContent = "Unauthorized"; return; }
+  const { orders, bookings } = await r.json();
+  for (const s of ["received", "preparing", "ready"]) {
+    const list = orders.filter((o) => o.status === s);
+    document.getElementById(s).innerHTML = list.map(ticket).join("") || `<div class="empty">Nothing here</div>`;
+    document.getElementById("c-" + s).textContent = list.length || "";
+  }
+  const bk = bookings.filter((b) => b.status !== "cancelled").sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  document.getElementById("bookings").innerHTML = bk.map((b) => `<div class="ticket ${fresh.has(b.id) ? "new" : ""}">
+      <div class="row"><span class="id">${esc(b.id)}</span><span class="badge ${b.channel === "alexa+" ? "alexa" : ""}">${esc(b.channel)}</span></div>
+      <div>${esc(b.serviceName)}</div><div class="meta">${esc(b.customerName)} · ${esc(b.date)} ${esc(b.time)}</div></div>`).join("") || `<div class="empty">No reservations</div>`;
+  document.getElementById("c-bookings").textContent = bk.length || "";
+}
+
+fetch("/api/business").then((r) => r.json()).then((b) => {
+  document.getElementById("biz").textContent = b.name;
+  document.getElementById("addr").textContent = b.address;
+  document.title = `${b.name} · Order Board`;
+});
+
+const es = new EventSource("/api/events" + q);
+es.onmessage = (e) => {
+  const evt = JSON.parse(e.data);
+  const id = evt.order?.id || evt.booking?.id;
+  if (evt.type.endsWith("created") && id) { fresh.add(id); setTimeout(() => fresh.delete(id), 2000); }
+  render();
+};
+es.onerror = () => { document.getElementById("dot").style.background = "var(--warn)"; document.getElementById("livetxt").textContent = "Reconnecting…"; };
+es.onopen = () => { document.getElementById("dot").style.background = "var(--ok)"; document.getElementById("livetxt").textContent = "Live"; };
+render();
+</script>
+</body>
+</html>

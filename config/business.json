@@ -1,0 +1,44 @@
+{
+  "id": "tonys-pizzeria",
+  "name": "Tony's Pizzeria",
+  "type": "restaurant",
+  "phone": "+1-718-555-0142",
+  "address": "214 Court St, Brooklyn, NY 11201",
+  "timezone": "America/New_York",
+  "currency": "USD",
+  "hours": {
+    "mon": ["11:00", "22:00"],
+    "tue": ["11:00", "22:00"],
+    "wed": ["11:00", "22:00"],
+    "thu": ["11:00", "22:00"],
+    "fri": ["11:00", "23:30"],
+    "sat": ["12:00", "23:30"],
+    "sun": ["12:00", "21:00"]
+  },
+  "ordering": {
+    "enabled": true,
+    "pickupLeadMinutes": 20,
+    "maxItemsPerOrder": 20
+  },
+  "menu": [
+    { "id": "margherita-l", "name": "Margherita Pizza (Large)", "category": "pizza", "price": 18.0, "tags": ["vegetarian"], "description": "San Marzano tomato, fresh mozzarella, basil" },
+    { "id": "margherita-s", "name": "Margherita Pizza (Small)", "category": "pizza", "price": 12.0, "tags": ["vegetarian"], "description": "San Marzano tomato, fresh mozzarella, basil" },
+    { "id": "pepperoni-l", "name": "Pepperoni Pizza (Large)", "category": "pizza", "price": 21.0, "tags": [], "description": "Cup-and-char pepperoni, mozzarella" },
+    { "id": "veggie-l", "name": "Garden Veggie Pizza (Large)", "category": "pizza", "price": 20.0, "tags": ["vegetarian"], "description": "Peppers, mushrooms, onions, olives" },
+    { "id": "vegan-l", "name": "Vegan Marinara Pizza (Large)", "category": "pizza", "price": 17.0, "tags": ["vegan", "vegetarian"], "description": "Tomato, garlic, oregano, no cheese" },
+    { "id": "garlic-knots", "name": "Garlic Knots (6)", "category": "sides", "price": 6.5, "tags": ["vegetarian"], "description": "With marinara" },
+    { "id": "caesar", "name": "Caesar Salad", "category": "sides", "price": 9.0, "tags": [], "description": "Romaine, parmesan, croutons" },
+    { "id": "cannoli", "name": "Cannoli", "category": "dessert", "price": 4.5, "tags": ["vegetarian"], "description": "Ricotta, chocolate chips" },
+    { "id": "soda", "name": "Can of Soda", "category": "drinks", "price": 2.0, "tags": ["vegan"], "description": "Coke, Diet Coke, Sprite" }
+  ],
+  "appointments": {
+    "enabled": true,
+    "label": "table reservation",
+    "slotMinutes": 30,
+    "capacityPerSlot": 3,
+    "services": [
+      { "id": "table-2", "name": "Table for 2", "durationMinutes": 60 },
+      { "id": "table-4", "name": "Table for 4", "durationMinutes": 90 }
+    ]
+  }
+}
